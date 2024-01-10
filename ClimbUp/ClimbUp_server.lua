@@ -1,3 +1,4 @@
+RegisterNetEvent("SetMarker")
 AddEventHandler("SetMarker", function(caller)
   Target = nil
   TriggerEvent('gridsystem:registerMarker', {
@@ -10,14 +11,15 @@ AddEventHandler("SetMarker", function(caller)
 		color = { r = 130, g = 120, b = 110 },
 		action = function()
       Target = GetPlayerPed(source)
-			TriggerEvent("PickUp2", Caller, Target)
+			TriggerEvent("PickUp2", caller, Target)
 		end
-  end
-})
+  })
 end)
 
+RegisterNetEvent("PickUp1")
 AddEventHandler("PickUp1", function(source)
   Caller = GetPlayerPed(source)
+  print(caller)
   local x1, y1, z1 = table.unpack(GetEntityCoords(caller))
   local playerpedcoords = vector3(x1, y1, z1 - 1)
   local edgecoord = GetEntityCoords(GetPlayerPed(caller))
@@ -45,6 +47,7 @@ AddEventHandler("PickUp1", function(source)
   end
 end)
 
+RegisterNetEvent("PickUp2")
 AddEventHandler("PickUp2", function(caller, target)
   TriggerEvent('gridsystem:unregisterMarker', 'climb_up_marker')
 
@@ -66,6 +69,7 @@ AddEventHandler("PickUp2", function(caller, target)
   RemoveAnimDict('wallclimb2@anim')
 end)
 
+RegisterNetEvent("Boost")
 AddEventHandler("Boost", function(source)
   local x, y, z = table.unpack(GetPlayerLookingVector(GetPlayerPed(-1), 0.15))
   TaskPlayAnim(GetPlayerPed(source), 'missfbi_s4mop', 'guard_idle_b', 8.0, 8.0, -1, 1, 0.0)
@@ -114,3 +118,6 @@ function GetEntityInDirection(coordFrom, coordTo)
   local _,flag_PedHit,PedCoords,_,PedHit = GetShapeTestResult(rayHandle)
   return PedHit
 end
+
+
+
