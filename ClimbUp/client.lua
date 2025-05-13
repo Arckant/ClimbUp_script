@@ -1,3 +1,8 @@
+-- #TODO: 
+-- Реализовать возможность одновременного отображения множества маркеров
+-- Реализовать корректное отображение анимации подъёма для разных высот (*или сделать ещё одну анимацию)
+-- Придумать как реализовать коллизию для второго педа в Boost() без создания пропа.
+
 anims = {
   {'climb1', 'climb1c'},
   {'climb2', 'climb2clip'},
@@ -5,35 +10,33 @@ anims = {
   {'boost1', 'boost1c'},
   {'boost2', 'boost2c'}
 }
-
-RegisterNetEvent("PickUp", function()
+--Принцип работы: Игрок становится перед уступом и вызывает комманду. С помощью Raycast() определяется точка уступа 
+--и точка для маркера взаимодействия, подходящая по высоте. При взаимодействии у педов включаются анимки на координатах оффсетов.
+RegisterCommand("PickUp", function()
 	local player = PlayerPedId()
   local range = 0.0
-  local edgecoord = GetOffsetFromEntityInWorldCoords(player, 0.0, range, -1.0)
-
+  local edgeCoord = GetOffsetFromEntityInWorldCoords(player, 0.0, range, -1.0) -- Координаты уступа
+	local interpoint = nil	
+		
 	for i = 1, 20, 1 do
-    local playeroffset = GetOffsetFromEntityInWorldCoords(player, 0.0, range, 0.0)
-    local playeroffset1 = GetOffsetFromEntityInWorldCoords(player, 0.0, range, -5.0)
-    endpoint = Raycast(playeroffset, playeroffset1)
+    local playerOffset = GetOffsetFromEntityInWorldCoords(player, 0.0, range, 0.0)
+    local playerOffset1 = GetOffsetFromEntityInWorldCoords(player, 0.0, range, -5.0)
+    endPoint = Raycast(playerOffset, playerOffset1) -- Координаты точки взаимодействия
     range = range + 0.1
-		line(endpoint)
+		DebugLine(endPoint)
 
-    if math.abs(edgecoord.z - endpoint.z) < 0.1 or edgecoord.z < endpoint.z then edgecoord = endpoint end
-    if #(playeroffset - endpoint) > 2.5 and  #(playeroffset - endpoint) < 5 then interpoint = endpoint end
+    if math.abs(edgeCoord.z - endPoint.z) < 0.1 or edgeCoord.z < endPoint.z then edgeCoord = endPoint end
+    if #(playerOffset - endPoint) > 2.5 and  #(playerOffset - endPoint) < 5 then interpoint = endPoint end
 	end
 
-	local endpoint = interpoint
+	local endPoint = interpoint
 	if interpoint == nil then return end
-
-	SetEntityCoords(player, edgecoord, false, false, false, false) 
 	
-	Citizen.Wait(11)
-	
-	local animoffset1 = GetOffsetFromEntityInWorldCoords(player, 0.0, -0.4, -1.0)
-	local animoffset = GetOffsetFromEntityInWorldCoords(player, 0.0, 1.25, -5.0)
+	local animOffset1 = GetOffsetFromEntityInWorldCoords(player, 0.0, -0.4, -1.0) -- Оффсет анимации первого педа
+	local animOffset = GetOffsetFromEntityInWorldCoords(player, 0.0, 1.25, -5.0) -- Оффсет анимации второго педа
 	local heading = GetEntityHeading(player) + 180
 	
-	SetEntityCoords(player, animoffset1, false, false, false, false)
+	SetEntityCoords(player, animOffset1, false, false, false, false)
 	
 	local i = 0
 	RequestAnimDict(anims[1][1])
@@ -43,7 +46,7 @@ RegisterNetEvent("PickUp", function()
 	end
 	if not HasAnimDictLoaded(anims[1][1]) then return end
 	
-	TaskPlayAnim(player, anims[1][1], anims[1][2], 4.0, 4.0, -1, 1026, 0)
+	TaskPlayAnim(player, anims[1][1], anims[1][2], 4.0, 4.0, -1, 1026, 0) -- Анимация ожидания взаимодействия
 
 	local i = 0
 	RequestAnimDict(anims[3][1])
@@ -52,9 +55,9 @@ RegisterNetEvent("PickUp", function()
 		Citizen.Wait(1)
 	end
 
-	TriggerServerEvent("SetClimbUpMarker", animoffset, heading, endpoint)
+	TriggerServerEvent("SetClimbUpMarker", animOffset, heading, endPoint)
 
-	Citizen.CreateThread(function()
+	Citizen.CreateThread(function() -- Функция удаления маркера при сбросе анимации
 		while IsEntityPlayingAnim(player, anims[1][1], anims[1][2], 3) do
 			Wait(100)
 		end
@@ -63,14 +66,14 @@ RegisterNetEvent("PickUp", function()
 
 end)
 
-RegisterNetEvent("ClimbUpMarker", function(animoffset, heading, endpoint, initiator)
+RegisterNetEvent("ClimbUpMarker", function(animOffset, heading, endPoint, initiator)
 	Citizen.CreateThread(function()
-		while not closethread1 do
+		while not closeThread1 do
 			
 			local sleep = 2000
 			local player = PlayerPedId()
 			local pos = GetEntityCoords(player)
-			local coord = endpoint
+			local coord = endPoint
 			local dist = GetDistanceBetweenCoords(pos, coord, true)
 
 			if dist < 30.0 then
@@ -93,7 +96,7 @@ RegisterNetEvent("ClimbUpMarker", function(animoffset, heading, endpoint, initia
 						end
 						if not HasAnimDictLoaded(anims[2][1]) then return end
 						
-						TriggerServerEvent('TriggerClimbUpMarker', animoffset, heading, initiator)
+						TriggerServerEvent('TriggerClimbUpMarker', animOffset, heading, initiator)
 						TriggerServerEvent("DeleteClimbUpMarker")
 					end
 				end
@@ -104,22 +107,20 @@ RegisterNetEvent("ClimbUpMarker", function(animoffset, heading, endpoint, initia
 	end)
 end)
 
-RegisterNetEvent('DeleteClimbUpMarker', function() closethread1 = true end)
+RegisterNetEvent('DeleteClimbUpMarker', function() closeThread1 = true end)
 
-RegisterNetEvent("ClimbUp1", function()
+RegisterNetEvent("ClimbUp1", function() -- Анимация первого педа при взаимодействии с маркером
 	local player = PlayerPedId()
-	--local coord = GetEntityCoords(player)
+
   TaskPlayAnim(player, anims[3][1], anims[3][2], 4.0, 4.0, -1, 1024, 0)
-	--SetEntityCoords(player, coord)
 
   RemoveAnimDict(anims[3][1])
-
 end)
 
-RegisterNetEvent("ClimbUp2", function(animoffset, heading)
+RegisterNetEvent("ClimbUp2", function(animOffset, heading) -- Анимация второго педа при взаимодействии с маркером
 	local player = PlayerPedId()
 
-  SetEntityCoords(player, animoffset, false, false, false, false) 
+  SetEntityCoords(player, animOffset, false, false, false, false) 
 	SetEntityHeading(player, heading)
 	
   TaskPlayAnim(player, anims[2][1], anims[2][2], 4.0, 4.0, -1, 1024, 0)
@@ -127,10 +128,12 @@ RegisterNetEvent("ClimbUp2", function(animoffset, heading)
   RemoveAnimDict(anims[2][1])
 end)
 
+--Принцип работы: при триггере комманды у игрока включается анимация, перед ним появляется маркер и спавнится невидимый проп,
+--на который встаёт пед задействовавший триггер маркера.
 RegisterCommand("Boost", function()
 	local player = PlayerPedId()
   local offset = GetOffsetFromEntityInWorldCoords(player, 0.0, 0.15, -1.0)
-  local animoffset = GetOffsetFromEntityInWorldCoords(player, 0.0, 0.7, 0.0)
+  local animOffset = GetOffsetFromEntityInWorldCoords(player, 0.0, 0.7, 0.0)
 	local heading = GetEntityHeading(player)
 	FreezeEntityPosition(player, 1)
 	
@@ -146,7 +149,7 @@ RegisterCommand("Boost", function()
 
 	Wait(0)
 
-	TriggerServerEvent("SetBoostMarker", offset, animoffset, heading)
+	TriggerServerEvent("SetBoostMarker", offset, animOffset, heading)
 end)
 
 RegisterNetEvent("BoostEntityRemove", function(entity)
@@ -160,13 +163,13 @@ RegisterNetEvent("BoostEntityRemove", function(entity)
 	end)
 end)
 
-RegisterNetEvent("BoostMarker", function(offset, animoffset, heading, entity, initiator)
+RegisterNetEvent("BoostMarker", function(offset, animOffset, heading, entity, initiator)
 	Citizen.CreateThread(function()
 		Wait(0)
 		local entity = NetToObj(entity)
 		SetEntityAlpha(entity, 0, 1)
 
-		while not closethread2 and initiator ~= GetPlayerServerId(PlayerId()) do
+		while not closeThread2 and initiator ~= GetPlayerServerId(PlayerId()) do
 			local sleep = 2000
 			local player = PlayerPedId()
 			local pos = GetEntityCoords(player)
@@ -183,7 +186,7 @@ RegisterNetEvent("BoostMarker", function(offset, animoffset, heading, entity, in
 					
 					if IsControlJustPressed(0, 38) then 
 						local entity = ObjToNet(entity)
-						TriggerServerEvent('TriggerBoostMarker', animoffset, heading, entity, initiator)
+						TriggerServerEvent('TriggerBoostMarker', animOffset, heading, entity, initiator)
 						
 					end
 				end
@@ -193,14 +196,14 @@ RegisterNetEvent("BoostMarker", function(offset, animoffset, heading, entity, in
 	end)
 end)
 
-RegisterNetEvent('DeleteBoostMarker', function(entity) closethread2 = true DeleteEntity(NetToObj(entity)) end)
+RegisterNetEvent('DeleteBoostMarker', function(entity) closeThread2 = true DeleteEntity(NetToObj(entity)) end)
 
 RegisterNetEvent("Boost1", function()
 	local player = PlayerPedId()
 
 end)
 
-RegisterNetEvent("Boost2", function(animoffset, heading, entity)
+RegisterNetEvent("Boost2", function(animOffset, heading, entity)
 	local player = PlayerPedId()
 
 	SetEntityCollision(NetToObj(entity), 1, 0)
@@ -214,7 +217,7 @@ RegisterNetEvent("Boost2", function(animoffset, heading, entity)
 	if not HasAnimDictLoaded(anims[5][1]) then return end
 
 	SetEntityHeading(player, heading + 180)
-  SetEntityCoords(player, animoffset.x, animoffset.y, animoffset.z -1) 
+  SetEntityCoords(player, animOffset.x, animOffset.y, animOffset.z -1) 
   TaskPlayAnim(player, anims[5][1], anims[5][2], 8.0, 8.0, -1, 1024, 0.0)
 end)
 
@@ -239,7 +242,7 @@ function Raycast(coordFrom, coordTo)
 	return nil
 end
 
-function line(c)
+function DebugLine(c)
 	local coords = c
 	Citizen.CreateThread(function()
 		while true do
